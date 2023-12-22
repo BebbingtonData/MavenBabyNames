@@ -1,0 +1,498 @@
+-- U.S Baby Names Project
+
+-- Task 1: Find the most popular overall Boy and Girl names
+
+select
+	name, sum(Births) as num_babies
+from
+	names
+where
+	gender = 'M'
+group by
+	name
+order by
+	max(Births) desc
+limit 1;
+
+select
+	name, sum(Births) as num_babies
+from
+	names
+where
+	gender = 'F'
+group by
+	name
+order by
+	max(Births) desc
+limit 1;
+
+-- Result: Michael is the most popular boy name and Jessica the most popular girl name overall
+
+-- Task 2: Show how Michael and Jessica have changed in popularity over time
+
+select
+	*
+from
+	(with cte_boynames as (select
+	name, year, sum(births) as num_babies
+from
+	names
+where 
+	gender = 'M'
+group by
+	year, name)
+
+select
+	year, name, row_number() over (partition by year order by num_babies desc) as popularity
+from
+	cte_boynames) as boy_popularity
+where
+	name = 'Michael';
+    
+select
+	*
+from
+	(with cte_girlnames as (select
+	name, year, sum(births) as num_babies
+from
+	names
+where 
+	gender = 'F'
+group by
+	year, name)
+
+select
+	year, name, row_number() over (partition by year order by num_babies desc) as popularity
+from
+	cte_girlnames) as girl_popularity
+where
+	name = 'Jessica';
+    
+-- Result: Michael has remained steadily a top 3 boys name frequently the top or 2nd top name, while Jessica maintained top 3 popularity until the late 90s, top 10 until 2001 where the name faced a sharp decline in the 00s
+
+-- Task 3: Find the names with the biggest jump in popularity between 1980 and 2009
+
+with names_1980 as (
+	with cte_babynames as (
+select
+	year, name, sum(births) as num_babies
+from
+	names
+group by
+	year, name)
+
+select
+	year, name, row_number() over (partition by year order by num_babies desc) as popularity
+from
+	cte_babynames
+where
+	year = 1980),
+
+names_2009 as (
+	with cte_babynames as (
+select
+	name, year, sum(births) as num_babies
+from
+	names
+group by
+	year, name)
+select
+	year, name, row_number() over (partition by year order by num_babies desc) as popularity
+from
+	cte_babynames
+where
+	year = 2009)
+
+select
+	t1.year, t1.name, t1.popularity, t2.year, t2.name, t2.popularity, cast(t2.popularity as signed) - cast(t1.popularity as signed) as popularity_change
+from
+	names_1980 t1
+inner join
+	names_2009 t2
+on
+	t1.name = t2.name
+order by
+	popularity_change;
+    
+--  Result: Colton saw the largest increase in popularity, closely followed by Aiden, Rowan and Skylar.
+--  The names with the biggest declines in popularity were Rusty, Tonia and Cherie although none of these names were ever even top 500. */
+
+-- Task 4: For each year compare the 3 most popular girls names and 3 most popular boy names
+
+with 
+	popular_boys as (
+select
+	*
+from
+(with cte_boynames as (select
+	name, year, gender, sum(births) as num_babies
+from
+	names
+where 
+	gender = 'M'
+group by
+	year, name)
+
+select
+	year, name, row_number() over (partition by year, gender order by num_babies desc) as popularity
+from
+	cte_boynames) as boy_popularity
+where
+	popularity <=3),
+
+	popular_girls as (
+select
+	*
+from
+(with cte_girlnames as (select
+	name, year, gender, sum(births) as num_babies
+from
+	names
+where 
+	gender = 'F'
+group by
+	year, name)
+
+select
+	year, name, row_number() over (partition by year, gender order by num_babies desc) as popularity
+from
+	cte_girlnames) as girl_popularity
+where
+	popularity <=3)
+    
+select
+	t1.year, t1.name, t1.popularity as boy_popularity, t2.name, t2.popularity as girl_popularity
+from
+	popular_boys t1
+join
+	popular_girls t2
+on
+	t1.year = t2.year and t1.popularity = t2.popularity;
+    
+-- Unlike the guide I opted to join the tables to directly compare the top 3 boy and girl names of each year
+-- This allows for better readibility and easier data manipulation to show the top X and draw insights. 
+-- Insights: Michael remains a popular top 3 name throughout, while Jessica loses out to Emily and Emma as the more popular 00s names
+
+-- Task 5: Compare the top 3 baby names of each gender per decade rather than year
+
+with 
+	popular_boys as (
+select
+	*
+from
+(with cte_boynames as (select
+	name, gender, sum(births) as num_babies, case 
+			when year < 1990 then '1980s'
+            when year < 2000 then '1990s'
+            else '2000s'
+			end as decade
+from
+	names
+where 
+	gender = 'M'
+group by
+	decade, name)
+
+select
+	decade, name, row_number() over (partition by decade, gender order by num_babies desc) as popularity
+from
+	cte_boynames) as boy_popularity
+where
+	popularity <=3),
+
+	popular_girls as (
+select
+	*
+from
+(with cte_girlnames as (select
+	name, gender, sum(births) as num_babies, case 
+			when year < 1990 then '1980s'
+            when year < 2000 then '1990s'
+            else '2000s'
+			end as decade
+from
+	names
+where 
+	gender = 'F'
+group by
+	decade, name)
+
+select
+	decade, name, row_number() over (partition by decade, gender order by num_babies desc) as popularity
+from
+	cte_girlnames) as girl_popularity
+where
+	popularity <=3)
+    
+select
+	t1.decade, t1.name, t1.popularity as boy_popularity, t2.name, t2.popularity as girl_popularity
+from
+	popular_boys t1
+join
+	popular_girls t2
+on
+	t1.decade = t2.decade and t1.popularity = t2.popularity;
+    
+-- As above, I have combined these into a single view to better compare the names for Boys and Girls
+-- Insights: Michael is the most popular name in the 80s and 90s, slipping to second place in the 00s
+-- Jessica is the most popular name in the 80s and 90s, slipping out of the top three in the 00s
+-- Christopher and Matthew occupy the remaining top three slots in the 80s and 90s but disappear in the 00s, replaced by Jacob and Joshua
+-- Emily appears in the number three slot in the 90s and rises up to the top slot in the 00s
+
+-- Task 6: Compare popularity across regions
+-- This will require cleaning as, at a glance, MI is missing as a State from the list of regions and the list of regions includes both New England and New_England
+-- The guided project uses a CTE to clean the data, however I have opted to update the tables permanently to ensure the data set remains clean for future use.
+select
+	distinct region
+from
+	regions
+    
+update
+	regions
+set
+	region = 'New_England'
+where
+	region = 'New England';
+
+-- This removes the erroneous New England region, consolidating 1 record into the New_England region.
+
+/* insert into
+	regions(state, region)
+values
+	('MI', 'Midwest')
+*/
+
+-- This adds the state of MI into the Midwest region, ensuring that data across the two tables is accurate and compatible
+
+select
+	t2.region, sum(births) as babies_born
+from
+	names t1
+inner join
+	regions t2
+where 
+	t1.state = t2.state
+group by
+	t2.region
+order by
+	babies_born desc;
+    
+-- More babies were born in the South than in any other region, by over 10 million babies. 
+-- Fewer babies were born in New England than any other region.
+
+-- Task 7: Find the 3 most popular girl and boy names in each region
+
+with 
+	popular_boys as (
+select
+	*
+from
+(with cte_boynames as (select
+	name, region, gender, sum(births) as num_babies
+from
+	names t1
+join
+	regions t2
+on
+	t1.state = t2.state
+where 
+	gender = 'M'
+group by
+	region, name)
+
+select
+	region, name, row_number() over (partition by region, gender order by num_babies desc) as popularity
+from
+	cte_boynames) as boy_popularity
+where
+	popularity <=3),
+    
+	popular_girls as (
+select
+	*
+from
+(with cte_girlnames as (select
+	name, region, gender, sum(births) as num_babies
+from
+	names t1
+inner join
+	regions t2
+on
+	t1.state = t2.state
+where 
+	gender = 'F'
+group by
+	region, name)
+
+select
+	region, name, row_number() over (partition by region, gender order by num_babies desc) as popularity
+from
+	cte_girlnames) as girl_popularity
+where
+	popularity <=3)
+	
+select
+	t1.region, t1.name, t1.popularity as boy_popularity, t2.name, t2.popularity as girl_popularity
+from
+	popular_boys t1
+join
+	popular_girls t2
+on
+	t1.region = t2.region and t1.popularity = t2.popularity;
+    
+-- Michael and Jessica are the most popular names in every U.S region except the South, where both drop to second place
+
+-- Task 8: Find the most popular androgynous names (names given to both boys and girls)
+ 
+with popular_boys
+	as (
+	select
+		*
+	from
+(with cte_boynames as (select
+	name, year, gender, sum(births) as num_babies
+from
+	names
+where 
+	gender = 'M'
+group by
+	year, name)
+    
+select
+	year, name, row_number() over (partition by year order by num_babies desc) as popularity
+from
+		cte_boynames) as boy_popularity),
+        
+popular_girls
+	as 
+	(select
+		*
+	from
+(with cte_girlnames as (select
+	name, year, gender, sum(births) as num_babies
+from
+	names
+where 
+	gender = 'F'
+group by
+	year, name)
+    
+select
+	year, name, row_number() over (partition by year order by num_babies desc) as popularity
+from
+		cte_girlnames) as girl_popularity)
+	select
+		distinct t1.name, (t1.popularity + t2.popularity) as totalpop
+	from
+		popular_boys t1
+	join
+		popular_girls t2
+	on
+		t1.name = t2.name
+	group by 
+		t1.name
+	order by
+		totalpop asc
+	limit 10;
+    
+-- Jamie is the most popularly androgynous name overall
+-- The guided answer uses total births to determine the most popular name given to either gender.
+-- My method of using combined popularity as a metric finds the name that is the most androgynous, rather than the most popular overall. I feel this is a more interesting and useful insight as the most popular overall would be 'Michael' yet again. 
+    
+-- Task 9: Find the shortest and longest names, and identify the most popular of these
+    
+    select
+		name, length(name) len
+	from
+		names
+	order by
+		len
+	limit 1;
+    
+    -- The shortest names are 2-letters long
+    
+    select
+		name, length(name) len
+	from
+		names
+	order by
+		len desc
+	limit 1;
+    
+    -- The longest names are 15-letters long
+    
+with
+	short_names as (
+    select
+		*
+	from
+		names
+	where length(name) in (2))
+    
+select
+	name, sum(births) as num_babies
+from
+	short_names
+group by
+	name
+order by
+	num_babies desc
+limit
+	1;
+
+-- The most popular short name is Ty
+      
+with
+	short_names as (
+    select
+		*
+	from
+		names
+	where length(name) in (15))
+    
+select
+	name, sum(births) as num_babies
+from
+	short_names
+group by
+	name
+order by
+	num_babies desc
+limit
+	1;
+
+-- The most popular long name is Franciscojavier
+
+-- Task 10: Find the State with the highest percentage of babies names Chris
+
+with cte_states as (
+	select
+	state, sum(births) as totalbirths
+from
+	names
+group by
+	state),
+    cte_names as (
+    select
+	name, state, sum(births) as chrisbirths
+from
+	names
+where
+	name = 'Chris'
+group by
+	name, state)
+select
+	name, t2.state, (chrisbirths / totalbirths) * 100 as chrispercent
+from
+	cte_states t1
+inner join
+	cte_names t2
+on
+t1.state = t2.state
+group by
+	t2.state
+order by
+	chrispercent desc;
+
+-- The highest percentage of Chris' per state is LA
+-- The lowest percentage of Chris' per state is WV
