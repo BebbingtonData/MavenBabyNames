@@ -496,3 +496,12 @@ order by
 
 -- The highest percentage of Chris' per state is LA
 -- The lowest percentage of Chris' per state is WV
+
+-- As a small extra insight, the number of babies named Maven
+
+select
+	*
+from
+	names
+where
+	name = 'Maven';
